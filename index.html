@@ -1,0 +1,722 @@
+<title>Simulador Derecho Registral II</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: una sola columna tipo "expediente" con barra superior de progreso y cronómetro */
+:root{
+  --bg:#F1F4F5; --paper:#FFFFFF; --ink:#16232A; --muted:#5A6B73; --line:#D7E0E3;
+  --accent:#1E5A6E; --accent-soft:#E2EEF2; --gold:#A8771C; --gold-soft:#FBF1DC;
+  --ok:#1F7A4D; --ok-soft:#E2F3EA; --bad:#B3261E; --bad-soft:#FBE7E5; --warn:#9A6400;
+  --display:"Newsreader", Georgia, "Times New Roman", serif;
+  --body:"Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15141C; --paper:#1F1D29; --ink:#ECEAF4; --muted:#A19DB3; --line:#34313F;
+  --accent:#6CC0D6; --accent-soft:#1D3239; --gold:#E2B456; --gold-soft:#3A3020;
+  --ok:#5FCB92; --ok-soft:#1C3328; --bad:#F2867D; --bad-soft:#3D2120; --warn:#E7B24F; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15141C; --paper:#1F1D29; --ink:#ECEAF4; --muted:#A19DB3; --line:#34313F;
+  --accent:#6CC0D6; --accent-soft:#1D3239; --gold:#E2B456; --gold-soft:#3A3020;
+  --ok:#5FCB92; --ok-soft:#1C3328; --bad:#F2867D; --bad-soft:#3D2120; --warn:#E7B24F; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 64px}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(1.9rem,5vw,2.6rem);font-weight:700}
+h2{font-size:1.5rem}
+.eyebrow{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.muted{color:var(--muted)}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:10px 16px;font-weight:600}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.primary{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+.primary:hover{filter:brightness(1.08)}
+.ghost{background:transparent}
+.small{padding:6px 12px;font-size:.85rem}
+/* mode picker */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.modes{grid-template-columns:1fr}}
+.mode{text-align:left;padding:16px;display:flex;flex-direction:column;gap:4px;border-width:2px}
+.mode b{font-family:var(--display);font-size:1.2rem}
+.mode span{font-weight:400;color:var(--muted);font-size:.9rem}
+.mode[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:.9rem;min-width:0}
+input[type=number],select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:6px 12px;font-size:.85rem;font-weight:500;border-radius:999px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.check{display:flex;gap:8px;align-items:center;font-size:.92rem}
+/* quiz header */
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.progress{height:6px;background:var(--line);border-radius:6px;overflow:hidden}
+.progress>i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.timer{font-family:var(--mono);font-weight:700;font-size:1.1rem;display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums}
+.timer.low{color:var(--bad)}
+.tbar{height:4px;background:var(--line);border-radius:4px;overflow:hidden}
+.tbar>i{display:block;height:100%;background:var(--gold);transition:width 1s linear}
+.tbar.low>i{background:var(--bad)}
+.tag{display:inline-block;font-family:var(--mono);font-size:.75rem;font-weight:700;color:var(--gold);background:var(--gold-soft);padding:3px 8px;border-radius:6px}
+.q{font-family:var(--display);font-size:clamp(1.25rem,3.4vw,1.55rem);font-weight:500;line-height:1.3}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{text-align:left;font-weight:500;display:flex;gap:12px;align-items:flex-start;padding:12px 14px}
+.opt .k{font-family:var(--mono);font-weight:700;color:var(--muted);min-width:1.2em}
+.opt.sel{border-color:var(--accent);background:var(--accent-soft)}
+.opt.right{border-color:var(--ok);background:var(--ok-soft)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.opt:disabled{cursor:default;opacity:1}
+textarea{min-height:110px;resize:vertical;line-height:1.5}
+.verdict{border-radius:12px;padding:14px 16px;font-weight:700;display:flex;gap:10px;align-items:center}
+.verdict.ok{background:var(--ok-soft);color:var(--ok)}
+.verdict.bad{background:var(--bad-soft);color:var(--bad)}
+.verdict.mid{background:var(--gold-soft);color:var(--warn)}
+.panel{border-left:3px solid var(--line);padding:4px 0 4px 14px;display:flex;flex-direction:column;gap:4px}
+.panel h3{font-family:var(--body);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.panel.pdf{border-color:var(--accent)}
+.panel.tip{border-color:var(--gold)}
+.panel.mn{border-color:var(--ok)}
+.pdftext{font-family:var(--display);font-size:1.08rem;line-height:1.45;white-space:pre-line}
+.kw{display:flex;flex-wrap:wrap;gap:6px}
+.kw span{font-size:.78rem;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+.kw span.hit{border-color:var(--ok);color:var(--ok)}
+.kw span.miss{border-color:var(--bad);color:var(--bad);text-decoration:line-through}
+.score{font-family:var(--display);font-size:3.2rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.list{display:flex;flex-direction:column;gap:8px}
+.li{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:.92rem}
+.dot{width:10px;height:10px;border-radius:50%;margin-top:7px;flex:none}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
+kbd{font-family:var(--mono);font-size:.78rem;border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.foot{font-size:.82rem;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+/* ===================== BANCO DE PREGUNTAS =====================
+ r = respuesta tal cual el PDF | c = opción correcta (modo marcar) | o = distractores
+ k = palabras clave (grupos; basta un sinónimo por grupo) | t = tip | m = mnemotecnia */
+const BANK = [
+// ---------- TÍTULO I: DIARIO ----------
+{s:"dia",a:"Título I · Diario",q:"¿Qué es el Diario y qué principio garantiza?",
+ r:"El Diario es el registro de ingreso donde se asigna a cada título fecha, hora, minuto, segundo y número de entrada, garantizando el principio de prioridad preferente.",
+ c:"Registro de ingreso que asigna fecha, hora, minuto, segundo y número de entrada; garantiza la prioridad preferente",
+ o:["Libro donde se archivan los títulos inscritos; garantiza la fe pública","Registro de las partidas por rubros; garantiza el tracto sucesivo","Registro de las tachas; garantiza la legalidad"],
+ k:[["ingreso","entrada"],["fecha","hora","numero"],["prioridad"]],
+ t:"Fíjate en el detalle: fecha, hora, MINUTO y SEGUNDO. Eso define quién llegó primero.",
+ m:"«Diario = Día y hora de llegada»: el primero en llegar es el primero en derecho."},
+{s:"dia",a:"Título I · Diario",q:"¿Es absoluta la inalterabilidad del Diario? ¿Por qué?",
+ r:"En la práctica, la inalterabilidad no es absoluta, pues los títulos ingresados al SID-SUNARP fuera del horario laboral o durante los fines de semana quedan pendientes y son procesados desde las 8:00 a. m., lo que podría afectar el orden cronológico exacto de su ingreso.",
+ c:"No; los títulos del SID-SUNARP ingresados fuera de horario o en fin de semana se procesan desde las 8:00 a. m.",
+ o:["Sí, es absoluta en todos los casos","No, porque el registrador puede alterar el orden a su criterio","No, porque los títulos físicos tienen preferencia sobre los digitales"],
+ k:[["no"],["sid","horario","fin de semana","fines de semana","8"]],
+ t:"Ojo con el SID-SUNARP: lo que ingresas de noche o el sábado queda en cola hasta las 8 am.",
+ m:"«El sistema duerme de noche y despierta a las 8»."},
+{s:"dia",a:"Título I · Diario",q:"¿Qué requisitos debe contener el asiento de presentación?",
+ r:"Requisitos del asiento: Nombre y DNI del presentante, naturaleza del documento (público o privado) y acto jurídico a inscribir.",
+ c:"Nombre y DNI del presentante, naturaleza del documento (público o privado) y acto a inscribir",
+ o:["Nombre del registrador, precio y linderos","Firma del notario, DNI del comprador y área del predio","Número de partida, rubro y fecha de inscripción"],
+ k:[["nombre","dni","presentante"],["naturaleza","publico","privado"],["acto"]],
+ t:"Son tres datos: QUIÉN presenta, QUÉ documento y QUÉ acto.",
+ m:"«Quién, Qué papel, Qué acto»."},
+{s:"dia",a:"Título I · Crítica",q:"¿Qué critica el doctor sobre exigir que se indique la «naturaleza del documento» en el asiento de presentación?",
+ r:"Exigir al usuario o al cajero clasificar la “naturaleza del documento” es indebido, pues determinar la naturaleza jurídica corresponde estrictamente al registrador en la calificación. Igualmente, criticó exigir datos accesorios difíciles de precisar (como el distrito exacto en zonas con disputas territoriales, ej. Tiabaya vs. Uchumayo).",
+ c:"Es indebido: determinar la naturaleza jurídica le corresponde al registrador en la calificación",
+ o:["Que debería determinarlo el notario","Que debería determinarlo el juez","Que no critica nada, le parece correcto"],
+ k:[["registrador"],["calificacion","calificar","indebido","no le corresponde"]],
+ t:"Ejemplo de dato accesorio difícil: el distrito en zonas en disputa, Tiabaya vs. Uchumayo.",
+ m:"«El cajero cobra, el registrador califica»."},
+{s:"dia",a:"Título I · Vigencia",q:"¿Cuál es el plazo ordinario de vigencia del asiento de presentación?",
+ r:"Plazo ordinario: 35 días hábiles a partir del ingreso al Diario.",
+ c:"35 días hábiles desde el ingreso al Diario",o:["30 días calendario","60 días hábiles","7 días hábiles"],
+ k:[["35","treinta y cinco"],["habil"]],
+ t:"Son días HÁBILES, no calendario.",m:"«35 = la regla madre»: 7 + 22 + 5 = 35."},
+{s:"dia",a:"Título I · Vigencia",q:"Explica la regla 35 - 7 - 22 - 5 del asiento de presentación.",
+ r:"Primeros 7 días hábiles: Plazo para que el registrador realice la calificación integral (inscriba, observe, tache o liquide).\nSiguientes 22 días hábiles: Tiempo asignado al usuario para subsanar observaciones o reingresar documentos (hasta el 6º día hábil anterior al vencimiento).\nÚltimos 5 días hábiles: Reservados exclusivamente para que la instancia registral resuelva el reingreso o extienda la inscripción.",
+ c:"7 días para que el registrador califique, 22 para que el usuario subsane y 5 para que el registro resuelva el reingreso",
+ o:["7 para el usuario, 22 para el registrador y 5 para apelar","5 para calificar, 22 para subsanar y 7 para inscribir","22 para calificar, 7 para subsanar y 5 para apelar"],
+ k:[["7","siete"],["22","veintidos"],["5","cinco"],["subsan","usuario","reingres"]],
+ t:"Usuario en el medio: el registrador abre (7) y cierra (5).",
+ m:"«El registrador es el pan del sándwich (7 y 5), el usuario es el relleno (22)»."},
+{s:"dia",a:"Título I · Vigencia",q:"¿Hasta qué día puede el usuario presentar documentos subsanatorios?",
+ r:"Hasta el 6º día hábil anterior al vencimiento (hasta el día 29, 22 días hábiles).",
+ c:"Hasta el 6º día hábil anterior al vencimiento (día 29)",o:["Hasta el último día de vigencia","Hasta el día 7","Hasta el día 35"],
+ k:[["6","sexto","29","veintinueve"]],
+ t:"7 + 22 = 29. Después de eso, los últimos 5 días son solo para el registrador.",m:"«29: el último día del usuario»."},
+{s:"dia",a:"Título I · Vigencia",q:"¿Qué hace el registrador durante los primeros 7 días hábiles?",
+ r:"Primeros 7 días hábiles: Plazo para que el registrador realice la calificación integral (inscriba, observe, tache o liquide).",
+ c:"La calificación integral: inscribe, observa, tacha o liquida",o:["Subsana las observaciones","Resuelve la apelación","Archiva el título"],
+ k:[["calific"],["inscrib","observ","tach","liquid"]],
+ t:"Cuatro resultados posibles de la calificación.",m:"«I-O-T-L»: Inscribe, Observa, Tacha, Liquida → «Ir O Tomar Lima»."},
+{s:"dia",a:"Título I · Crítica",q:"¿Qué critica el profesor sobre el plazo de 22 días para subsanar?",
+ r:"El reglamento no indica de forma explícita los 22 días para subsanar, obligando al usuario a restar los 7 días iniciales y los 5 días finales del total de 35 días.",
+ c:"El reglamento no lo indica explícitamente; el usuario debe restar 7 y 5 al total de 35",
+ o:["Que es demasiado largo","Que debería ser en días calendario","Que lo fija el registrador a su criterio"],
+ k:[["explicit","no indica","no lo dice","no establece","no señala"],["restar","resta","7","5","35"]],
+ t:"",m:"«35 − 7 − 5 = 22: haz la resta tú mismo»."},
+{s:"dia",a:"Título I · Prioridad",q:"¿Qué son los títulos incompatibles y cuál es el efecto de la prioridad preferente?",
+ r:"No puede inscribirse un título posterior que sea incompatible con uno anterior pendiente de inscripción.\nEfecto de la prioridad: La inscripción del título posterior queda suspendida mientras el título anterior mantenga vigente su asiento de presentación.",
+ c:"No se inscribe el título posterior incompatible; queda suspendido mientras el anterior tenga vigente su asiento",
+ o:["Se inscriben ambos y decide el juez","Se inscribe el que pague primero","Se tacha el anterior automáticamente"],
+ k:[["posterior"],["suspend","no puede inscribirse","no se inscribe"],["anterior","vigente"]],
+ t:"",m:"«Primero en tiempo, primero en derecho»."},
+{s:"dia",a:"Título I · Ejemplo",q:"El título A ingresa el 7 de octubre y el título B (incompatible) el 10 de octubre. ¿Qué pasa si A se inscribe y qué pasa si A caduca?",
+ r:"El Título B no se puede calificar ni inscribir mientras A esté pendiente. Si A se inscribe, la inscripción retrotrae sus efectos al 7 de octubre y suspende o excluye a B. Si A caduca, se levanta la suspensión de B y se inicia su calificación.",
+ c:"Si A se inscribe, retrotrae efectos al 7 de octubre y excluye a B; si A caduca, se levanta la suspensión de B y se califica",
+ o:["Se inscriben ambos en orden","B se inscribe primero por ser más reciente","Si A caduca, B también caduca"],
+ k:[["retrotrae","7 de octubre","excluye"],["caduca","levanta","califica"]],
+ t:"A estaba vigente hasta el 27 de noviembre.",m:"«A manda; si A muere, B vive»."},
+// ---------- TÍTULO II: CALIFICACIÓN ----------
+{s:"cal",a:"Título II · Calificación",q:"¿Qué es la calificación registral?",
+ r:"Evaluación integral de la legalidad de los títulos, capacidad de los otorgantes, validez del acto, verificar la inexistencia de obstáculos insalvables, representación e incompatibilidad con la partida.",
+ c:"Evaluación integral de la legalidad del título, capacidad de los otorgantes, validez del acto, obstáculos, representación e incompatibilidad",
+ o:["La verificación de la identidad física de las partes","El cobro de los derechos registrales","La redacción de la escritura pública"],
+ k:[["legalidad"],["capacidad"],["validez","acto"],["obstaculo","representacion","incompatib"]],
+ t:"Art. 31 en adelante.",m:"«LeCaVa-ORI»: Legalidad, Capacidad, Validez, Obstáculos, Representación, Incompatibilidad."},
+{s:"cal",a:"Título II · Art. 32.1.b",q:"¿Qué critica el profesor sobre el término «obstáculos insalvables» del Art. 32.1.b?",
+ r:"El profesor señala que “obstáculo” es una palabra indeterminada que da excesiva discrecionalidad al registrador para frenar inscripciones.",
+ c:"Es una palabra indeterminada que da excesiva discrecionalidad al registrador",
+ o:["Que es demasiado específica","Que debería decirlo el juez","Que no existe en el reglamento"],
+ k:[["indetermin","ambigu","vago","impreciso"],["discrecional","arbitr","criterio"]],
+ t:"",m:"«Obstáculo = Ojo, lo que el registrador quiera»."},
+{s:"cal",a:"Título II · Ejemplo",q:"Caso Talía Beverly Paredes Velázquez: compró soltera, se casó y su nuevo DNI dice «Talía Paredes de Callo». Al vender, el registrador observa por discrepancia de identidad. ¿Qué sostiene el profesor?",
+ r:"El profesor sostiene que el registrador debe verificar en RENIEC/PSI y no observar.",
+ c:"El registrador debe verificar en RENIEC/PSI y no observar",
+ o:["La observación es correcta","Debe tachar el título","Debe pedir una resolución judicial"],
+ k:[["reniec","psi","verific"],["no observar","no debe observar","no"]],
+ t:"",m:"«Antes de observar, consulta RENIEC»."},
+{s:"cal",a:"Título II · Capacidad",q:"¿A quién corresponde la apreciación de la capacidad física y la fe de identidad?",
+ r:"La apreciación de la capacidad física y fe de identidad corresponde al notario, no al registrador.",
+ c:"Al notario, no al registrador",o:["Al registrador","Al juez","A RENIEC"],
+ k:[["notario"]],t:"Es un límite de la calificación.",m:"«El notario te ve la cara; el registrador ve papeles»."},
+{s:"cal",a:"Título II · Laudos",q:"¿Qué califica el registrador en un laudo arbitral y qué NO califica?",
+ r:"El registrador solo califica la formalidad del laudo y la existencia del convenio arbitral. No califica la competencia del árbitro ni el fondo de la decisión.",
+ c:"Califica la formalidad del laudo y la existencia del convenio; no la competencia del árbitro ni el fondo",
+ o:["Califica el fondo y la competencia del árbitro","Califica todo el laudo","No califica nada del laudo"],
+ k:[["formalidad","forma"],["convenio"],["fondo","competencia"]],
+ t:"",m:"«Forma y Convenio sí; Fondo y Competencia no» → «FC sí, FC no»."},
+{s:"cal",a:"Título II · Laudos",q:"¿Qué es el principio de no afectación a terceros en los laudos?",
+ r:"El laudo no produce efectos ni puede ejecutarse registralmente contra quien no firmó el convenio arbitral.",
+ c:"El laudo no produce efectos ni se ejecuta registralmente contra quien no firmó el convenio arbitral",
+ o:["El laudo afecta a todos los que figuren en la partida","El laudo solo afecta al árbitro","El laudo se ejecuta contra cualquier garante"],
+ k:[["no firmo","no suscribio","no firma","quien no"],["convenio","clausula"]],
+ t:"",m:"«No firmaste, no te toca»."},
+{s:"cal",a:"Título II · Ejemplo",q:"Una persona firma como garante personal (aval) sin constituir hipoteca. Un laudo ordena embargar sus bienes. ¿Procede el embargo en SUNARP?",
+ r:"El embargo no procede en la SUNARP si la garante no firmó la cláusula arbitral.",
+ c:"No procede, porque la garante no firmó la cláusula arbitral",
+ o:["Sí procede, porque es garante","Sí procede si el laudo es firme","Solo procede sobre la mitad de sus bienes"],
+ k:[["no"],["clausula","convenio","no firmo"]],t:"Aplica el principio de no afectación a terceros.",m:"«Aval sin cláusula = bienes a salvo»."},
+{s:"cal",a:"Título II · Reglas",q:"Si un registrador conoce un título previamente observado o liquidado por otro, ¿puede formular nuevas observaciones?",
+ r:"No puede formular nuevas observaciones a los documentos ya calificados, pero sí puede dejar sin efecto las anteriores. En una nueva presentación del mismo título, el registrador debe mantener su criterio previo.",
+ c:"No puede formular nuevas observaciones, pero sí puede dejar sin efecto las anteriores",
+ o:["Sí, puede agregar las que quiera","No puede ni agregar ni dejar sin efecto","Solo puede agregar con autorización del Tribunal Registral"],
+ k:[["no"],["dejar sin efecto","levantar","desestimar","sin efecto"]],
+ t:"",m:"«Puede quitar, no puede poner»."},
+{s:"cal",a:"Título II · Crítica",q:"¿Cuál es la incoherencia que el doctor señala en el artículo sobre reglas de calificación?",
+ r:"Contradicción interna en la norma: la primera parte le prohíbe al registrador agregar nuevas observaciones a lo ya calificado, pero el tramo final del mismo inciso añade que podrá desestimar o dejar sin efecto las observaciones formuladas con anterioridad, lo que otorga un margen de arbitrariedad e inseguridad jurídica.",
+ c:"Prohíbe agregar observaciones pero permite dejarlas sin efecto, lo que da arbitrariedad e inseguridad jurídica",
+ o:["Que no permite apelar","Que el plazo es muy corto","Que no menciona al notario"],
+ k:[["prohib","no puede agregar","nuevas"],["sin efecto","desestim"],["arbitr","inseguridad"]],
+ t:"",m:"«Una mano prohíbe, la otra permite»."},
+{s:"cal",a:"Título II · Reingreso",q:"Si un título fue tachado por caducidad y se reingresa dentro de los 6 meses (sin retirar los documentos), ¿qué puede hacer el nuevo registrador?",
+ r:"El nuevo registrador debe mantener las observaciones anteriores o levantarlas, pero no puede agregar observaciones distintas. (Porque no sería correcto que cada vez que el ciudadano vuelva a presentar el mismo título aparezcan nuevos requisitos que antes no fueron señalados)",
+ c:"Mantener o levantar las observaciones anteriores, pero no agregar observaciones distintas",
+ o:["Formular observaciones nuevas libremente","Tacharlo de plano","Inscribirlo sin calificar"],
+ k:[["mantener","levantar"],["no puede agregar","no agregar","distintas","nuevas"]],
+ t:"El plazo clave es 6 MESES.",m:"«6 meses, mismas reglas»."},
+{s:"cal",a:"Título II · Reingreso",q:"Si el título anterior idéntico se inscribió o liquidó, ¿puede el registrador observar el nuevo título idéntico?",
+ r:"Si el título anterior se inscribió o liquidó, el registrador no puede formular observaciones al nuevo título idéntico.",
+ c:"No, no puede formular observaciones",o:["Sí, puede observar libremente","Solo puede observar el pago","Debe tacharlo"],
+ k:[["no"]],t:"",m:"«Ya pasó una vez, pasa otra vez»."},
+{s:"cal",a:"Título II · Abstención",q:"¿Cuándo procede la abstención obligatoria del registrador?",
+ r:"Imperativa por ley: (parentesco hasta el 4.º grado de consanguinidad y 2.º de afinidad, haber sido abogado o interés directo). El registrador debe inhibirse si el título involucra a su hermano, cónyuge o cliente previo.",
+ c:"Por parentesco hasta el 4.º grado de consanguinidad y 2.º de afinidad, haber sido abogado o tener interés directo",
+ o:["Por decoro o delicadeza","Por carga laboral","Por cualquier duda sobre el título"],
+ k:[["parentesco","consanguin","afinidad","familiar"],["abogado","interes"]],
+ t:"",m:"«4 de sangre, 2 de boda»: 4.º consanguinidad, 2.º afinidad."},
+{s:"cal",a:"Título II · Abstención",q:"¿Qué es la abstención voluntaria y qué cuestiona el doctor?",
+ r:"Facultativa por “decoro o delicadeza” (razones éticas). El doctor cuestiona la subjetividad con la que se faculta al registrador para asumir una verificación puramente visual de firmas y sellos notariales y determinar la falsedad de plano.",
+ c:"Facultativa por decoro o delicadeza; el doctor cuestiona su subjetividad",
+ o:["Obligatoria por parentesco","Por haber sido abogado de una parte","Por orden del Tribunal Registral"],
+ k:[["decoro","delicadeza","etic"]],t:"",m:"«Voluntaria = Valores (ética)»."},
+{s:"cal",a:"Título II · Falsedad (Art. 36)",q:"¿Cuándo procede la tacha por falsedad documental y cuáles son sus efectos?",
+ r:"Si la instancia registral advierte la falsedad del documento (comprobada de forma indubitable mediante oficio del notario o autoridad emisora), procede la tacha de plano.\nEfectos: Caduca el asiento de presentación, se retienen los documentos en custodia registral y se remiten copias al Ministerio Público.",
+ c:"Cuando la falsedad se comprueba mediante oficio del notario o autoridad emisora; caduca el asiento, se retienen documentos y se envían copias al MP",
+ o:["Cuando el registrador sospecha a simple vista; se devuelven los documentos","Cuando lo denuncia un tercero; se suspende el asiento","Nunca procede tacha, solo observación"],
+ k:[["oficio","notario","autoridad"],["caduca"],["retien","custodia"],["ministerio publico","mp","fiscal"]],
+ t:"",m:"«Falso → Caduca, Custodia, Copias al MP» (3 C)."},
+{s:"cal",a:"Título II · Crítica",q:"¿Qué critica el doctor sobre el término «advierte» en la tacha por falsedad?",
+ r:"El término “advierte” es subjetivo. El registrador no detecta a simple vista una firma o sello falso; requiere confirmación oficial previa.",
+ c:"Es subjetivo: el registrador no detecta a simple vista una firma falsa; requiere confirmación oficial",
+ o:["Que es demasiado técnico","Que debería decir «presume»","Que no critica nada"],
+ k:[["subjetiv"],["simple vista","confirmacion","oficial"]],t:"",m:"«Advertir no es comprobar»."},
+{s:"cal",a:"Título II · Plazos",q:"¿Cuál es el plazo legal de calificación y qué critica el doctor?",
+ r:"Plazo legal: 7 días hábiles para calificar. Las sanciones por demora resultan ineficaces porque los registradores justifican los retrasos (en base a las observaciones vistas en clases ningún registrador cumple con el plazo) alegando la “complejidad del título”.",
+ c:"7 días hábiles; las sanciones son ineficaces porque los registradores alegan «complejidad del título»",
+ o:["15 días; se cumple siempre","5 días; no hay sanciones","35 días; el plazo es muy corto"],
+ k:[["7","siete"],["complejidad","justifican","ineficac","no cumple"]],t:"",m:"«7 días... que nadie cumple»."},
+{s:"cal",a:"Título II · Esquelas",q:"¿Qué es la motivación integral de las esquelas?",
+ r:"Motivación integral: Las observaciones deben formularse de forma global en un solo acto.",
+ c:"Las observaciones deben formularse de forma global en un solo acto",
+ o:["Cada observación se notifica por separado","Se observa por partes según avanza el trámite","Solo se motiva la tacha"],
+ k:[["global","un solo acto","una sola vez","todas juntas","de una"]],t:"",m:"«Todo de una vez, no en cuotas»."},
+{s:"cal",a:"Título II · Fábricas",q:"Diferencia entre obra nueva, ampliación y modificación.",
+ r:"Obra Nueva: Construcción realizada sobre un terreno totalmente baldío.\nAmpliación: Incremento de la superficie techada construida respecto a lo ya inscrito.\nModificación: Redistribución interna de ambientes dentro del mismo perímetro y área techada inscrita. No modifica el área techada inscrita. (Ej. derribar y levantar tabiques internos).",
+ c:"Obra nueva: sobre terreno baldío; Ampliación: aumenta el área techada; Modificación: redistribución interna sin cambiar el área techada",
+ o:["Obra nueva: aumenta área; Ampliación: terreno baldío; Modificación: demolición","Las tres significan lo mismo","Obra nueva: tabiques; Ampliación: redistribución; Modificación: más pisos"],
+ k:[["baldio","vacio","terreno"],["incremento","aumenta","mas area","techada"],["redistribu","interna","tabique","ambientes"]],
+ t:"",m:"«Nueva = Nada había; Ampliación = Agranda; Modificación = Mueve paredes»."},
+{s:"cal",a:"Título II · Fábricas",q:"¿Qué documento requiere la obra nueva?",
+ r:"Requiere FUE (Formulario Único de Edificación) o FOR (Formulario Registral) conforme a ley.",
+ c:"FUE (Formulario Único de Edificación) o FOR (Formulario Registral)",
+ o:["Certificado literal","Partida matriz","Laudo arbitral"],
+ k:[["fue","formulario unico"],["for","formulario registral"]],t:"",m:"«FUE o FOR»: Fue a la Obra."},
+{s:"cal",a:"Título II · Crítica",q:"¿Qué error del registrador sobre un FUE mencionó el doctor en clase?",
+ r:"El registrador observó un FUE calificándolo como “ampliación” solo porque ya existía una edificación inscrita, sin evaluar que se trataba de una simple modificación interna de ambientes.",
+ c:"Lo calificó como «ampliación» solo porque ya había edificación inscrita, cuando era una modificación interna",
+ o:["Lo calificó como obra nueva sobre terreno baldío","Lo tachó por falsedad","Lo inscribió sin calificar"],
+ k:[["ampliacion"],["modificacion","interna"]],t:"",m:"«No todo lo que tiene casa es ampliación»."},
+{s:"cal",a:"Título II · Conexos",q:"¿Qué son los títulos conexos?",
+ r:"Títulos presentados en asientos distintos referentes al mismo bien que requieren calificación conjunta.",
+ c:"Títulos en asientos distintos sobre el mismo bien que requieren calificación conjunta",
+ o:["Títulos incompatibles entre sí","Títulos de distintos bienes del mismo propietario","Títulos tachados por caducidad"],
+ k:[["mismo bien"],["conjunta","juntos","conjunto"]],t:"",m:"«Conexos = Conectados por el mismo bien»."},
+{s:"cal",a:"Título II · Ejemplo",q:"¿Es válida la venta de un bien gravado? Explica el ejemplo de $100,000.",
+ r:"Es plenamente válida e inscribible. El comprador adquiere el bien con las hipotecas inscritas, descontándolas del precio. (Ejemplo: Inmueble de $100,000 con 1ª hipoteca de $10,000 y 2ª hipoteca de $40,000; se vende válidamente en $50,000).",
+ c:"Sí, es válida e inscribible; el comprador adquiere con las hipotecas, descontándolas del precio ($100,000 − $50,000 = $50,000)",
+ o:["No, primero se deben levantar las hipotecas","Solo con autorización del banco","Es válida pero no inscribible"],
+ k:[["valida","inscribible","si"],["hipoteca","descont","50"]],t:"",m:"«100 − 10 − 40 = 50»."},
+// ---------- TÍTULO III: TACHAS ----------
+{s:"tac",a:"Título III · Tacha sustantiva",q:"¿Cuándo procede la tacha sustantiva (de plano)?",
+ r:"Procede la tacha de plano al vencer la vigencia del asiento o por defectos insubsanables.",
+ c:"Al vencer la vigencia del asiento o por defectos insubsanables",
+ o:["Por cualquier error de tipeo","Por falta de pago","Por presentarse en oficina incompetente"],
+ k:[["insubsanable","defecto"]],t:"Literales A al F.",m:"«Sustantiva = Sin Solución»."},
+{s:"tac",a:"Título III · Literal A",q:"Literal A (defecto insubsanable): A vende a B (no inscrito) y B vende a C. Si C ingresa su título, ¿qué hace el registrador y cuál es la crítica del doctor?",
+ r:"El registrador tacha por falta de tracto. Crítica: No es insubsanable; es una deficiencia que se rectifica ampliando la rogatoria o presentando el título A-B.",
+ c:"Tacha por falta de tracto; crítica: no es insubsanable, se corrige ampliando la rogatoria o presentando el título A-B",
+ o:["Inscribe a C directamente","Observa por falta de pago","Tacha por falsedad documental"],
+ k:[["tracto"],["rogatoria","a b","a-b","subsanable","no es insubsanable"]],t:"",m:"«Falta un eslabón (A→B), no se rompió la cadena»."},
+{s:"tac",a:"Título III · Literal B",q:"Da un ejemplo de obstáculo insalvable de la partida (Literal B).",
+ r:"Querer inscribir un acto sobre 1,000 m² cuando en la partida solo quedan 100 m² por independizaciones previas.",
+ c:"Inscribir un acto sobre 1,000 m² cuando en la partida solo quedan 100 m²",
+ o:["Escritura otorgada después del ingreso al Diario","Transferencia de acciones de una SAC","Error de las partes en la escritura"],
+ k:[["1000","1 000","mil"],["100","cien","independiz"]],t:"",m:"«No puedes vender lo que ya no queda»."},
+{s:"tac",a:"Título III · Literal C",q:"Da un ejemplo de acto no preexistente (Literal C).",
+ r:"Compraventa ingresada al Diario el 10 de octubre pero la Escritura fue otorgada el 15 de octubre.",
+ c:"Compraventa ingresada al Diario el 10 de octubre con escritura otorgada el 15 de octubre",
+ o:["Inscribir 1,000 m² cuando quedan 100 m²","Falsedad confirmada por el notario","Venta de bien hipotecado"],
+ k:[["10"],["15"]],t:"El acto no existía cuando ingresó al Diario.",m:"«No puedes llegar antes de nacer» (10 antes que 15)."},
+{s:"tac",a:"Título III · Literal D",q:"¿Cómo se confirma la falsedad documental (Literal D)?",
+ r:"Falsedad confirmada mediante oficio del notario (Art. 36).",
+ c:"Mediante oficio del notario (Art. 36)",o:["A simple vista por el registrador","Por declaración jurada de una parte","Por pericia del cajero"],
+ k:[["oficio"],["notario"]],t:"",m:"«D de Documento falso → oficio del notario»."},
+{s:"tac",a:"Título III · Literal E",q:"Da un ejemplo de acto no inscribible (Literal E).",
+ r:"Transferencia de acciones de una SAC enviada a la SUNARP. Se anota en el Libro de Matrícula de Acciones privado, no en el registro público.",
+ c:"Transferencia de acciones de una SAC: se anota en el Libro de Matrícula de Acciones, no en SUNARP",
+ o:["Compraventa de un inmueble","Hipoteca de un departamento","Constitución de una SAC"],
+ k:[["acciones"],["matricula","libro"]],t:"",m:"«Acciones a su Libro, no a SUNARP»."},
+{s:"tac",a:"Título III · Literal F",q:"Da un ejemplo del Literal F (rectificación no imputable al Registro sin abono de derechos).",
+ r:"Error cometido por las partes en la Escritura que el usuario exige corregir gratuitamente.",
+ c:"Error de las partes en la escritura que el usuario quiere corregir gratis",
+ o:["Error de tipeo del registrador","Falsedad del sello notarial","Duplicidad de partidas"],
+ k:[["partes","usuario"],["gratis","gratuit","sin pagar","sin abono"]],t:"Si el error es tuyo, pagas.",m:"«F de Free: no hay gratis si el error es tuyo»."},
+{s:"tac",a:"Título III · Tipos de tacha",q:"¿Cuándo se produce la tacha por caducidad?",
+ r:"Cuando el usuario no subsana las observaciones o no paga la liquidación dentro del plazo correspondiente. Se produce al vencer los 35 días hábiles o las prórrogas aplicables.",
+ c:"Cuando el usuario no subsana o no paga la liquidación; al vencer los 35 días hábiles o prórrogas",
+ o:["Cuando el título es falso","Cuando se presenta en oficina incompetente","Dentro de los primeros 5 días"],
+ k:[["subsan","paga","liquidacion"],["35","vencer","plazo"]],t:"Busca cerrar el procedimiento.",m:"«Caducidad = se Cayó el plazo»."},
+{s:"tac",a:"Título III · Tacha especial",q:"¿Cuándo procede la tacha especial y en qué plazo se emite?",
+ r:"Cuando el título se presenta en una oficina incompetente, en soporte físico cuando corresponde presentación digital, carece del documento principal o el acto ya está inscrito. Se emite dentro de los primeros 5 días hábiles. El asiento tiene una vigencia adicional de 3 días para interponer apelación.",
+ c:"Oficina incompetente, soporte físico cuando era digital, falta el documento principal o el acto ya está inscrito; dentro de los primeros 5 días hábiles",
+ o:["Por defectos insubsanables; al día 35","Por falta de pago; dentro de 7 días","Por falsedad documental; en 10 días"],
+ k:[["incompetente","fisico","digital","documento principal","ya inscrito","inscrito"],["5","cinco"]],t:"Fue creada para descongestionar el Libro Diario.",m:"«Especial = Express: 5 días + 3 para apelar»."},
+{s:"tac",a:"Título III · Tacha especial",q:"En la tacha especial, ¿cuánta vigencia adicional tiene el asiento y para qué?",
+ r:"El asiento tiene una vigencia adicional de 3 días para interponer apelación.",
+ c:"3 días adicionales para interponer apelación",o:["5 días para subsanar","22 días para reingresar","10 días para pagar"],
+ k:[["3","tres"],["apela"]],t:"",m:"«5 + 3: tachan rápido, apelas rápido»."},
+{s:"tac",a:"Título III · Tacha especial",q:"¿Con qué finalidad se incorporó la tacha especial?",
+ r:"Fue incorporada para descongestionar el Libro Diario y retirar rápidamente los títulos que presentan determinados incumplimientos formales.",
+ c:"Para descongestionar el Libro Diario y retirar rápido títulos con incumplimientos formales",
+ o:["Para sancionar a los notarios","Para proteger a terceros adquirentes","Para ampliar el plazo de calificación"],
+ k:[["descongestion","congestion","diario"],["formal","rapid","retirar"]],t:"",m:"«Especial = limpia la cola del Diario»."},
+// ---------- TÍTULO IV-V ----------
+{s:"ins",a:"Título IV · Asientos",q:"¿Cuál es el contenido esencial de los asientos registrales?",
+ r:"Identificación de las partes, descripción del bien, antecedente registral, acto jurídico, precio y forma de pago, fecha e instrumento público.",
+ c:"Partes, descripción del bien, antecedente registral, acto, precio y forma de pago, fecha e instrumento público",
+ o:["Nombre del cajero y DNI del presentante","Solo el nombre del propietario","Linderos y fotografía del bien"],
+ k:[["partes"],["bien","descripcion"],["antecedente"],["precio","pago"]],
+ t:"",m:"«PaBi-AnAc-PreFe»: Partes, Bien, Antecedente, Acto, Precio, Fecha."},
+{s:"ins",a:"Título IV · Crítica",q:"¿Qué critica el doctor sobre el contenido de los asientos?",
+ r:"El término “resumen del acto” es ambiguo y subjetivo. Además, criticó la exigencia inútil de consignar el nombre del registrador que inscribe dentro del resumen.",
+ c:"Que «resumen del acto» es ambiguo y subjetivo, y que es inútil consignar el nombre del registrador",
+ o:["Que el asiento es demasiado corto","Que no se pone el precio","Que debería firmarlo el notario"],
+ k:[["resumen","ambigu","subjetiv"],["nombre del registrador","registrador"]],t:"",m:"«Resumen vago y firma inútil»."},
+{s:"ins",a:"Título IV · Folio real",q:"¿Cuáles son los rubros del folio real?",
+ r:"Rubro A (Ubicación y Linderos), Rubro B (Dominios y Transferencias), Rubro C (Cargas y Gravámenes), Rubro D (Cancelaciones).",
+ c:"A: Ubicación y linderos; B: Dominios y transferencias; C: Cargas y gravámenes; D: Cancelaciones",
+ o:["A: Cargas; B: Linderos; C: Cancelaciones; D: Dominio","A: Dominio; B: Cargas; C: Linderos; D: Títulos","A: Propietario; B: Hipotecas; C: Embargos; D: Archivos"],
+ k:[["ubicacion","lindero"],["dominio","transferencia"],["carga","gravamen"],["cancelacion"]],
+ t:"",m:"«A-B-C-D = Área, Bolsillo del dueño, Cargas, Desaparecen (cancelaciones)»."},
+{s:"ins",a:"Título IV · Cargas matrices",q:"¿Qué es el arrastre de cargas matrices?",
+ r:"Al independizar lotes de una habilitación urbana, las cargas de la matriz (falta de recepción de obras) se trasladan automáticamente a todas las partidas individuales.",
+ c:"Al independizar lotes, las cargas de la matriz se trasladan automáticamente a todas las partidas individuales",
+ o:["Las cargas desaparecen al independizar","Solo se trasladan al primer lote","El comprador elige qué cargas llevar"],
+ k:[["independiz","lote"],["traslad","pasan","arrastr","automatic"]],t:"Ejemplo: falta de recepción de obras.",m:"«La mamá (matriz) pasa sus deudas a los hijos (lotes)»."},
+{s:"ins",a:"Título IV · Partida",q:"¿Cuánto costaba la partida antigua y cuánto cuesta ahora?",
+ r:"Antes se dividía en 4 y valía s/. 1.70, ahora viene en cada hoja y vale s/. 7, es decir las 5 hojas valen s/. 35",
+ c:"Antes S/ 1.70; ahora S/ 7 por hoja (5 hojas = S/ 35)",o:["Antes S/ 7; ahora S/ 1.70","Siempre costó S/ 35","Antes S/ 10; ahora gratis"],
+ k:[["1.70","1 70","170"],["7","siete","35"]],t:"",m:"«De 1.70 a 7 por hoja»."},
+{s:"ins",a:"Título V · Duplicidad",q:"En la duplicidad de partidas idénticas, ¿qué partida se cierra?",
+ r:"Partidas idénticas: Se ordena el cierre de la partida menos antigua.",
+ c:"La partida menos antigua",o:["La más antigua","Ambas","La que tenga menos asientos"],
+ k:[["menos antigua","mas nueva","mas reciente","nueva","reciente"]],t:"",m:"«Se queda la abuela, se va la nieta»."},
+{s:"ins",a:"Título V · Duplicidad",q:"En partidas con inscripciones incompatibles, ¿qué pasa si hay oposición de parte?",
+ r:"Si existe oposición de parte en 60 días, la vía administrativa concluye y el caso se deriva al Poder Judicial.",
+ c:"Si hay oposición en 60 días, concluye la vía administrativa y se deriva al Poder Judicial",
+ o:["Resuelve el registrador en 7 días","Se cierran ambas partidas","Decide el Tribunal Registral sin plazo"],
+ k:[["60","sesenta"],["judicial","juez","pj"]],t:"",m:"«60 días y al juez»."},
+{s:"ins",a:"Título V · Ejemplos",q:"¿Qué ejemplos de superposición de predios dio el doctor?",
+ r:"Linderos antiguos ambiguos (“un sauce de 5m”, “una acequia”, “la lomada”) que generaron superposiciones masivas en Arequipa y playas de Camaná (CASO MALL DE PORONGOCHE).\nMigración geodésica de PSAD56 a WGS84/UTM: Provocó un desplazamiento gráfico ficticio de 11,000 m² en el papel entre predios colindantes.",
+ c:"Linderos antiguos ambiguos (caso Mall de Porongoche) y la migración de PSAD56 a WGS84 (desplazamiento ficticio de 11,000 m²)",
+ o:["Ventas de acciones de SAC","Errores de tipeo del registrador","Hipotecas sucesivas"],
+ k:[["lindero","sauce","acequia","porongoche"],["psad","wgs","geodes","11"]],t:"",m:"«Un sauce y un satélite»: linderos naturales y cambio de coordenadas."},
+{s:"ins",a:"Título V · Ejemplos",q:"¿Qué provocó la migración geodésica de PSAD56 a WGS84/UTM?",
+ r:"Provocó un desplazamiento gráfico ficticio de 11,000 m² en el papel entre predios colindantes.",
+ c:"Un desplazamiento gráfico ficticio de 11,000 m² entre predios colindantes",
+ o:["La pérdida de las partidas","El cierre de partidas antiguas","La duplicidad de propietarios"],
+ k:[["desplaz","movi","corri"],["11","once mil"]],t:"",m:"«Cambias el mapa, se mueven 11 mil metros»."},
+// ---------- TÍTULO VI-VIII ----------
+{s:"ano",a:"Título VI · Anotaciones",q:"¿Qué son las anotaciones preventivas?",
+ r:"Asientos provisionales que reservan prioridad y publicitan un proceso judicial o medida cautelar.",
+ c:"Asientos provisionales que reservan prioridad y publicitan un proceso judicial o medida cautelar",
+ o:["Asientos definitivos de dominio","Cancelaciones de hipotecas","Observaciones del registrador"],
+ k:[["provisional"],["prioridad","publicit","judicial","cautelar"]],t:"",m:"«Preventiva = Pongo mi lugar en la fila»."},
+{s:"ano",a:"Título VI · Anotaciones",q:"¿La anotación preventiva congela la partida?",
+ r:"No congelan la partida. El bien puede venderse o gravarse; el adquirente asume el riesgo del juicio.",
+ c:"No; el bien puede venderse o gravarse y el adquirente asume el riesgo del juicio",
+ o:["Sí, el bien queda inmovilizado","Sí, hasta que el juez decida","Solo impide hipotecar"],
+ k:[["no"],["riesgo","vender","grav","adquirente"]],t:"",m:"«No congela: compras con el problema incluido»."},
+{s:"ano",a:"Título VI · Retroprioridad",q:"¿Qué es la retroprioridad?",
+ r:"Si la medida se convierte en definitiva, sus efectos se retrotraen a la fecha del asiento de presentación de la anotación preventiva.",
+ c:"Si la medida se vuelve definitiva, sus efectos se retrotraen a la fecha del asiento de presentación de la anotación",
+ o:["Los efectos empiezan desde la sentencia","Se pierde la prioridad","Los efectos se retrotraen a la fecha de la escritura"],
+ k:[["definitiv"],["retrotra","fecha","presentacion"]],t:"",m:"«Retro = vuelve atrás en el tiempo»."},
+{s:"ano",a:"Título VI · Regularización",q:"¿Qué son los asientos de regularización y qué critica el doctor?",
+ r:"Mecanismo para subsanar de oficio la falta de firma del registrador en un asiento o título archivado. Crítica del doctor: Otorga impunidad administrativa al registrador, en contraste con la responsabilidad estricta del notario por omitir una firma.",
+ c:"Subsanan de oficio la falta de firma del registrador; el doctor critica que dan impunidad al registrador frente a la responsabilidad del notario",
+ o:["Corrigen errores de concepto; no hay crítica","Cierran partidas duplicadas","Rectifican errores de las partes con pago"],
+ k:[["firma"],["impunidad","notario","de oficio"]],t:"",m:"«Al registrador se le perdona; al notario no»."},
+{s:"ano",a:"Título VII · Rectificación",q:"Diferencia entre error material y error de concepto.",
+ r:"Error Material: Discrepancia entre el asiento y el título archivado (nombres, cifras o datos mal tipeados por el registrador). Se rectifica de oficio con el título archivado. Gratuito si es imputable al Registro.\nError de Concepto: Alteración del sentido del acto jurídico o interpretación errónea del título archivado. Requiere nuevo título aclaratorio de las partes o resolución judicial. Genera pago de derechos.",
+ c:"Material: datos mal tipeados, se rectifica de oficio y gratis; Concepto: altera el sentido del acto, requiere nuevo título o resolución judicial y se paga",
+ o:["Material: altera el sentido; Concepto: error de tipeo","Ambos son gratuitos y de oficio","Ambos requieren resolución judicial"],
+ k:[["tipe","dato","nombre","cifra","material"],["oficio","gratu"],["sentido","interpret","concepto"],["nuevo titulo","judicial","pago","aclarat"]],
+ t:"",m:"«Material = Mal escrito (gratis); Concepto = Cambió el Contenido (cuesta)»."},
+{s:"ano",a:"Título VIII · Extinción",q:"¿Por qué causas se extinguen las inscripciones?",
+ r:"a) Cancelación (puede ser total o parcial); b) Caducidad (por el paso del tiempo); c) Conversión en inscripción definitiva.",
+ c:"Cancelación (total o parcial), caducidad y conversión en inscripción definitiva",
+ o:["Tacha, observación y liquidación","Rectificación, duplicidad y archivo","Venta, hipoteca y embargo"],
+ k:[["cancelacion"],["caducidad"],["conversion","definitiva"]],t:"Se extinguen respecto de terceros desde que se cancela el asiento.",m:"«3 C»: Cancelación, Caducidad, Conversión."},
+{s:"ano",a:"Título VIII · Reconstrucción",q:"¿Qué es la reproducción de partidas y en qué plazo se obtiene el duplicado?",
+ r:"Reproducción: Primer paso administrativo. Se oficia al notario, juez o autoridad custodio de la matriz para obtener un duplicado en el plazo de 30 días.",
+ c:"Primer paso: se oficia al notario, juez o autoridad custodio para obtener un duplicado en 30 días",
+ o:["Se reconstruye con testigos en 6 meses","Se publica un aviso por 60 días","Se pide al Poder Judicial en 10 días"],
+ k:[["oficia","notario","juez","custodi"],["30","treinta"]],t:"",m:"«Primero piden copia (30 días)»."},
+{s:"ano",a:"Título VIII · Reconstrucción",q:"¿Cuándo procede la reconstrucción y cuánto dura?",
+ r:"Reconstrucción: Procede cuando fracasa la reproducción. Dura 6 meses desde la publicación del aviso virtual en la sede digital de la SUNARP.",
+ c:"Cuando fracasa la reproducción; dura 6 meses desde el aviso virtual en la sede digital de SUNARP",
+ o:["Siempre; dura 30 días","Cuando lo pide el propietario; dura 1 año","Cuando hay duplicidad; dura 60 días"],
+ k:[["fracas","no se logra","falla"],["6","seis"]],t:"",m:"«30 días para copiar; si falla, 6 meses para reconstruir»."},
+{s:"ano",a:"Título VIII · Reconstrucción",q:"¿Qué valor tienen los asientos provisionales durante la reconstrucción?",
+ r:"Durante la reconstrucción se extienden asientos provisionales con carácter meramente informativo (sin fe pública ni legitimación).",
+ c:"Carácter meramente informativo, sin fe pública ni legitimación",
+ o:["Plena fe pública","Valor de título de ejecución","Valor de inscripción definitiva"],
+ k:[["informativ","sin fe publica","no tiene fe","sin legitimacion"]],t:"",m:"«Provisional = solo para informarte»."},
+{s:"ano",a:"Título VIII · Reconstrucción",q:"¿Qué ocurre al vencer los 6 meses de reconstrucción?",
+ r:"Si se obtiene todo: Conversión en asientos definitivos (partida reconstruida).\nSi falta información: Prórroga indefinida de los asientos provisionales o conclusión sin reconstruir (obstáculo insalvable para calificar nuevos títulos).",
+ c:"Si se obtiene todo, se convierten en definitivos; si falta información, prórroga indefinida o conclusión sin reconstruir",
+ o:["Siempre se cierra la partida","Siempre se convierten en definitivos","Pasa al Poder Judicial"],
+ k:[["definitiv","conversion"],["prorroga","indefinid","sin reconstruir","obstaculo"]],t:"",m:"«Todo = definitivo; falta = provisional eterno»."},
+{s:"ano",a:"Título VIII · Archivo",q:"¿Cómo se archivan los títulos?",
+ r:"Los títulos se archivan cronológicamente por orden de presentación y se empastan en legajos, sin perjuicio del archivo en microformas o sistemas digitales.",
+ c:"Cronológicamente por orden de presentación, empastados en legajos (además de microformas o sistemas digitales)",
+ o:["Alfabéticamente por propietario","Por distrito","Por tipo de acto"],
+ k:[["cronolog","orden de presentacion","orden"],["legajo","empast"]],t:"Si se deterioran fojas no digitalizadas, se transcriben a una nueva partida.",m:"«Por orden de llegada, en legajos»."},
+{s:"ano",a:"Título VIII · Archivo",q:"¿Qué pasa si se deterioran fojas de libros o fichas que no están digitalizadas?",
+ r:"Si se deterioran fojas de libros o fichas y no están digitalizadas, se transcriben a una nueva partida dejando constancia de la partida primitiva.",
+ c:"Se transcriben a una nueva partida dejando constancia de la partida primitiva",
+ o:["Se destruyen","Se reconstruyen en 6 meses","Se cierra la partida"],
+ k:[["transcrib","nueva partida"],["constancia","primitiva","original"]],t:"",m:"«Hoja vieja → hoja nueva con nota de la abuela»."},
+{s:"ano",a:"Título VIII · Archivo",q:"Según el docente, ¿cómo evolucionó el almacenamiento en la SUNARP?",
+ r:"1. Microfilmación: Fotografiar las escrituras en carretes de película en blanco y negro (similar a los rollos cinematográficos antiguos) que luego se proyectaban mediante ecranes o visores especiales.\n2. Digitalización: Escaneo electrónico integrado al sistema informático actual.",
+ c:"Primero microfilmación (carretes de película) y luego digitalización (escaneo electrónico)",
+ o:["Primero digitalización y luego microfilmación","Solo fotocopias","Primero nube y luego microfilm"],
+ k:[["microfilm","pelicula","carrete"],["digital","escane"]],t:"",m:"«Del cine al escáner»."},
+// ---------- TÍTULO IX: PUBLICIDAD ----------
+{s:"pub",a:"Título IX · Publicidad",q:"¿La información gratuita de la web de SUNARP constituye publicidad formal?",
+ r:"La información gratuita suministrada en la web de la SUNARP no constituye publicidad formal. La SUNARP no asume responsabilidad por errores en consultas gratuitas online.",
+ c:"No; y SUNARP no asume responsabilidad por errores en consultas gratuitas",
+ o:["Sí, tiene el mismo valor que un certificado","Sí, si se imprime","Solo si la firma un registrador"],
+ k:[["no"],["responsabilidad","publicidad formal","gratuit"]],t:"",m:"«Lo gratis no te protege»."},
+{s:"pub",a:"Título IX · Certificados",q:"¿Qué es el certificado literal y qué aconseja el profesor?",
+ r:"Copia fiel e íntegra de la partida o título archivado. Ofrece máxima seguridad. El profesor aconseja pedirlo siempre completo sin extractos.",
+ c:"Copia fiel e íntegra de la partida o título archivado; pedirlo siempre completo",
+ o:["Extracto de la partida; pedirlo resumido","Vigencia de poder; pedirlo diario","Búsqueda catastral; no es necesario"],
+ k:[["copia","integr","fiel","completo"]],t:"",m:"«Literal = Letra por letra»."},
+{s:"pub",a:"Título IX · Certificados",q:"¿Qué es el certificado compendioso? Da ejemplos.",
+ r:"Extracto o síntesis (Vigencia de Poder, Certificado Positivo/Negativo, Búsqueda Catastral).",
+ c:"Extracto o síntesis: vigencia de poder, certificado positivo/negativo, búsqueda catastral",
+ o:["Copia íntegra de la partida","Título archivado completo","Asiento de presentación"],
+ k:[["extracto","sintesis","resumen"],["vigencia","positivo","negativo","catastral"]],t:"",m:"«Compendioso = Compendio = resumen»."},
+{s:"pub",a:"Título IX · Riesgo",q:"¿Cuál es el riesgo procesal de la vigencia de poder y qué propuesta da el profesor?",
+ r:"Riesgo en Vigencia de Poder: Si un apoderado es revocado a las 8:00 a.m. y pide vigencia a las 10:00 a.m., la SUNARP se la expide por no estar inscrita aún la revocatoria, facilitando fraudes. Propuesta: Bloqueo automático al solicitar la vigencia.",
+ c:"Revocado a las 8 am, pide vigencia a las 10 am y se la dan porque la revocatoria no está inscrita; propuesta: bloqueo automático",
+ o:["Que la vigencia cuesta mucho; propuesta: gratuidad","Que la vigencia demora; propuesta: ampliar plazo","No hay riesgo"],
+ k:[["revoca"],["inscrit","fraude","expide"],["bloqueo"]],t:"",m:"«8 revocan, 10 estafan → bloquea»."}
+];
+
+const SECTIONS = {dia:"Título I · Diario y presentación",cal:"Título II · Calificación",tac:"Título III · Tachas",ins:"Títulos IV–V · Inscripciones y duplicidad",ano:"Títulos VI–VIII · Anotaciones, rectificación, extinción",pub:"Título IX · Publicidad"};
+
+/* ===================== CALIFICACIÓN ===================== */
+function norm(s){return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[°º]/g," ").replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();}
+const NUMW={"uno":"1","un":"1","dos":"2","tres":"3","cuatro":"4","cinco":"5","seis":"6","diez":"10","treinta":"30","sesenta":"60"};
+function hasAlt(text,alt){
+  const a=norm(alt); if(!a) return false;
+  if(a.length<=3 || /^\d+$/.test(a)){return (" "+text+" ").includes(" "+a+" ");}
+  return text.includes(a);
+}
+function grade(q,ans){
+  let t=norm(ans);
+  // números en palabras -> dígitos (sin reemplazar el original)
+  t = t+" "+t.split(" ").map(w=>NUMW[w]||"").filter(Boolean).join(" ");
+  const res=q.k.map(g=>({label:g[0],hit:g.some(alt=>hasAlt(t,alt))}));
+  const hits=res.filter(r=>r.hit).length;
+  const ratio=res.length?hits/res.length:0;
+  return {res,ratio,ok: norm(ans).length>=1 && ratio>=0.6};
+}
+
+/* ===================== ESTADO ===================== */
+const LS="reg2-settings-v1";
+let settings={mode:"write",secs:60,timer:true,shuffle:true,sections:Object.keys(SECTIONS),count:0};
+try{const s=JSON.parse(localStorage.getItem(LS)||"null"); if(s) settings=Object.assign(settings,s);}catch(e){}
+function save(){try{localStorage.setItem(LS,JSON.stringify(settings));}catch(e){}}
+
+let S=null; // sesión
+let tick=null;
+const app=document.getElementById("app");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const shuf=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+
+/* ===================== PANTALLA INICIO ===================== */
+function home(){
+  stopTimer();
+  const avail=BANK.filter(q=>settings.sections.includes(q.s)).length;
+  app.innerHTML=`
+  <header class="stack" style="gap:8px">
+    <div class="eyebrow">Derecho Registral II</div>
+    <h1>Simulador de examen</h1>
+    <p class="muted" style="margin:0;max-width:60ch">${BANK.length} preguntas sacadas de tus apuntes del Reglamento General de los Registros Públicos (Títulos I al IX, arts. 24 al 141). Al final se repiten las que falles hasta que las respondas bien.</p>
+  </header>
+  <section class="card stack">
+    <h2>¿Cómo quieres responder?</h2>
+    <div class="modes">
+      <button class="mode" id="m-write" aria-pressed="${settings.mode==='write'}"><b>✍️ Rellenar</b><span>Escribes con tus propias palabras. Te califico por palabras clave.</span></button>
+      <button class="mode" id="m-mc" aria-pressed="${settings.mode==='mc'}"><b>☑️ Marcar</b><span>Eliges entre 4 alternativas.</span></button>
+    </div>
+  </section>
+  <section class="card stack">
+    <h2>Cronómetro</h2>
+    <label class="check"><input type="checkbox" id="tOn" ${settings.timer?'checked':''}> Activar cronómetro por pregunta</label>
+    <div class="grid2">
+      <label class="f">Segundos por pregunta<input type="number" id="secs" min="5" max="900" step="5" value="${settings.secs}"></label>
+      <label class="f">Atajo<select id="preset"><option value="">Elegir…</option><option>20</option><option>30</option><option>45</option><option>60</option><option>90</option><option>120</option><option>180</option></select></label>
+    </div>
+    <p class="foot" style="margin:0">Si se acaba el tiempo, la pregunta cuenta como fallada y vuelve en el repaso.</p>
+  </section>
+  <section class="card stack">
+    <h2>Temas</h2>
+    <div class="chips" id="secs-chips">${Object.entries(SECTIONS).map(([k,v])=>`<button class="chip" data-s="${k}" aria-pressed="${settings.sections.includes(k)}">${v} <span class="muted">(${BANK.filter(q=>q.s===k).length})</span></button>`).join("")}</div>
+    <div class="grid2">
+      <label class="f">Cantidad de preguntas<select id="count">
+        <option value="0" ${settings.count==0?'selected':''}>Todas las seleccionadas (${avail})</option>
+        ${[10,20,30,50].filter(n=>n<avail).map(n=>`<option value="${n}" ${settings.count==n?'selected':''}>${n}</option>`).join("")}
+      </select></label>
+      <label class="check" style="align-self:end;padding-bottom:10px"><input type="checkbox" id="shuf" ${settings.shuffle?'checked':''}> Orden aleatorio</label>
+    </div>
+  </section>
+  <div class="row"><button class="primary" id="go" ${avail?'':'disabled'}>Empezar examen →</button><span class="foot"><kbd>Enter</kbd> responde · <kbd>Shift</kbd>+<kbd>Enter</kbd> salto de línea</span></div>`;
+  document.getElementById("m-write").onclick=()=>{settings.mode="write";save();home();};
+  document.getElementById("m-mc").onclick=()=>{settings.mode="mc";save();home();};
+  document.getElementById("tOn").onchange=e=>{settings.timer=e.target.checked;save();};
+  document.getElementById("secs").oninput=e=>{const v=parseInt(e.target.value,10);if(v>0){settings.secs=v;save();}};
+  document.getElementById("preset").onchange=e=>{if(e.target.value){settings.secs=+e.target.value;document.getElementById("secs").value=settings.secs;settings.timer=true;document.getElementById("tOn").checked=true;save();}};
+  document.getElementById("shuf").onchange=e=>{settings.shuffle=e.target.checked;save();};
+  document.getElementById("count").onchange=e=>{settings.count=+e.target.value;save();};
+  document.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{const k=b.dataset.s;const i=settings.sections.indexOf(k);if(i>=0)settings.sections.splice(i,1);else settings.sections.push(k);save();home();});
+  document.getElementById("go").onclick=start;
+}
+
+function start(){
+  let pool=BANK.map((q,i)=>i).filter(i=>settings.sections.includes(BANK[i].s));
+  if(settings.shuffle) pool=shuf(pool);
+  if(settings.count>0) pool=pool.slice(0,settings.count);
+  S={queue:pool,idx:0,round:1,results:{},firstTry:{},roundLog:[],answered:false};
+  show();
+}
+
+/* ===================== PREGUNTA ===================== */
+function show(){
+  stopTimer();
+  const qi=S.queue[S.idx], q=BANK[qi];
+  S.answered=false; S.sel=null;
+  const pct=Math.round(S.idx/S.queue.length*100);
+  const mc=settings.mode==="mc";
+  let opts="";
+  if(mc){
+    S.opts=shuf([{t:q.c,ok:true},...q.o.map(t=>({t,ok:false}))]);
+    opts=`<div class="opts" id="opts">${S.opts.map((o,i)=>`<button class="opt" data-i="${i}"><span class="k">${"ABCD"[i]}</span><span>${esc(o.t)}</span></button>`).join("")}</div>`;
+  }
+  app.innerHTML=`
+  <div class="stack" style="gap:10px">
+    <div class="bar">
+      <div class="row" style="gap:8px"><button class="ghost small" id="exit">← Salir</button>
+        <span class="foot">${S.round>1?`Repaso ${S.round-1} · `:""}Pregunta ${S.idx+1} de ${S.queue.length}</span></div>
+      <div class="row" style="gap:8px">
+        <button class="small" id="swap" title="Cambiar modo">${mc?"Cambiar a ✍️ Rellenar":"Cambiar a ☑️ Marcar"}</button>
+        ${settings.timer?`<span class="timer" id="clock">⏱ ${fmt(settings.secs)}</span><button class="small ghost" id="pause">Pausa</button>`:""}
+      </div>
+    </div>
+    <div class="progress"><i style="width:${pct}%"></i></div>
+    ${settings.timer?`<div class="tbar" id="tbar"><i style="width:100%"></i></div>`:""}
+  </div>
+  <section class="card stack" id="qcard">
+    <div><span class="tag">${esc(q.a)}</span></div>
+    <div class="q">${esc(q.q)}</div>
+    ${mc?opts:`<textarea id="ans" placeholder="Escribe tu respuesta con tus palabras…" aria-label="Tu respuesta"></textarea>
+      <div class="row"><button class="primary" id="send">Responder</button><button class="ghost" id="idk">No sé, ver respuesta</button></div>`}
+    <div id="fb" class="stack"></div>
+  </section>`;
+  document.getElementById("exit").onclick=()=>{ if(Object.keys(S.results).length) finishRound(true); else home(); };
+  document.getElementById("swap").onclick=()=>{ if(S.answered) {settings.mode=mc?"write":"mc";save();return show();} settings.mode=mc?"write":"mc";save();show();};
+  if(mc){
+    document.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{ if(S.answered) return; answerMC(+b.dataset.i); });
+  }else{
+    const ta=document.getElementById("ans"); ta.focus();
+    ta.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();answerWrite();}};
+    document.getElementById("send").onclick=answerWrite;
+    document.getElementById("idk").onclick=()=>answerWrite(true);
+  }
+  if(settings.timer){startTimer(settings.secs); document.getElementById("pause").onclick=togglePause;}
+}
+
+function fmt(s){s=Math.max(0,s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
+let remaining=0, paused=false;
+function startTimer(sec){
+  remaining=sec; paused=false; drawClock();
+  tick=setInterval(()=>{ if(paused) return; remaining--; drawClock(); if(remaining<=0){stopTimer(); timeUp();} },1000);
+}
+function drawClock(){
+  const c=document.getElementById("clock"), b=document.getElementById("tbar"); if(!c) return;
+  c.textContent=(paused?"⏸ ":"⏱ ")+fmt(remaining);
+  const low=remaining<=Math.max(5,Math.round(settings.secs*0.2));
+  c.classList.toggle("low",low); b.classList.toggle("low",low);
+  b.firstElementChild.style.width=(remaining/settings.secs*100)+"%";
+}
+function togglePause(){ if(S.answered) return; paused=!paused; const p=document.getElementById("pause"); if(p) p.textContent=paused?"Seguir":"Pausa"; drawClock(); }
+function stopTimer(){ if(tick){clearInterval(tick);tick=null;} }
+function timeUp(){
+  if(S.answered) return;
+  if(settings.mode==="mc"){ answerMC(null,true); } else { answerWrite(false,true); }
+}
+
+function answerMC(i,timeout){
+  S.answered=true; stopTimer();
+  const ok = i!=null && S.opts[i].ok;
+  document.querySelectorAll(".opt").forEach((b,j)=>{ b.disabled=true; if(S.opts[j].ok) b.classList.add("right"); else if(j===i) b.classList.add("wrong"); });
+  record(ok);
+  feedback({ok,timeout,mc:true});
+}
+function answerWrite(idk,timeout){
+  if(S.answered) return;
+  const ta=document.getElementById("ans"); const v=ta.value;
+  if(!idk && !timeout && !v.trim()){ ta.focus(); ta.placeholder="Escribe algo primero (o pulsa «No sé, ver respuesta»)"; return; }
+  S.answered=true; stopTimer();
+  ta.readOnly=true; document.getElementById("send").disabled=true; document.getElementById("idk").disabled=true;
+  const g=idk?{res:BANK[S.queue[S.idx]].k.map(x=>({label:x[0],hit:false})),ratio:0,ok:false}:grade(BANK[S.queue[S.idx]],v);
+  record(g.ok);
+  feedback({ok:g.ok,timeout,idk,g,mc:false});
+}
+function record(ok){
+  const qi=S.queue[S.idx];
+  S.results[qi]=ok;
+  if(!(qi in S.firstTry)) S.firstTry[qi]=ok;
+}
+function feedback({ok,timeout,idk,g,mc}){
+  const q=BANK[S.queue[S.idx]];
+  let cls=ok?"ok":"bad", msg=ok?"✔ ¡Correcto!":"✘ Incorrecto";
+  if(timeout) msg="⏰ Se acabó el tiempo";
+  else if(idk) msg="Aquí va la respuesta";
+  else if(!ok && g && g.ratio>=0.34){cls="mid";msg="◐ Casi: te faltaron ideas clave";}
+  const kw = (!mc && g && !idk) ? `<div class="stack" style="gap:6px"><span class="foot">Ideas clave que busqué en tu respuesta:</span><div class="kw">${g.res.map(r=>`<span class="${r.hit?'hit':'miss'}">${esc(r.label)}</span>`).join("")}</div></div>`:"";
+  const last=S.idx===S.queue.length-1;
+  document.getElementById("fb").innerHTML=`
+    <div class="verdict ${cls}" id="vd">${msg}</div>
+    ${kw}
+    <div class="panel pdf"><h3>Respuesta según tus apuntes</h3><div class="pdftext">${esc(q.r)}</div></div>
+    ${q.t?`<div class="panel tip"><h3>Tip</h3><div>${esc(q.t)}</div></div>`:""}
+    ${q.m?`<div class="panel mn"><h3>Mnemotecnia</h3><div>${esc(q.m)}</div></div>`:""}
+    <div class="row">
+      <button class="primary" id="next">${last?"Ver resultados →":"Siguiente →"}</button>
+      ${(!mc && !ok && !idk && !timeout)?`<button class="ghost" id="override">Mi respuesta sí estaba bien</button>`:""}
+      ${(!mc && ok)?`<button class="ghost" id="underride">Marcar como incorrecta</button>`:""}
+    </div>`;
+  const nx=document.getElementById("next"); nx.focus();
+  nx.onclick=next;
+  const ov=document.getElementById("override");
+  if(ov) ov.onclick=()=>{const qi=S.queue[S.idx];S.results[qi]=true;S.firstTry[qi]=true;const v=document.getElementById("vd");v.className="verdict ok";v.textContent="✔ Marcada como correcta por ti";ov.remove();};
+  const un=document.getElementById("underride");
+  if(un) un.onclick=()=>{const qi=S.queue[S.idx];S.results[qi]=false;S.firstTry[qi]=false;const v=document.getElementById("vd");v.className="verdict bad";v.textContent="✘ Marcada como incorrecta: volverá en el repaso";un.remove();};
+  document.getElementById("fb").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+function next(){ if(S.idx<S.queue.length-1){S.idx++;show();} else finishRound(false); }
+
+/* ===================== RESULTADOS ===================== */
+function finishRound(early){
+  stopTimer();
+  const asked=early?S.queue.slice(0,S.idx+(S.answered?1:0)):S.queue;
+  const wrong=asked.filter(i=>S.results[i]===false);
+  const right=asked.length-wrong.length;
+  S.roundLog.push({round:S.round,total:asked.length,right});
+  const first=S.roundLog[0];
+  const pct=first.total?Math.round(first.right/first.total*20*10)/10:0;
+  const done=wrong.length===0;
+  app.innerHTML=`
+  <header class="stack" style="gap:8px">
+    <div class="eyebrow">${S.round===1?"Resultado del examen":"Resultado del repaso "+(S.round-1)}</div>
+    <h1>${done?"¡Todas correctas!":"Te faltan "+wrong.length}</h1>
+  </header>
+  <section class="card stack">
+    <div class="row" style="gap:28px;align-items:flex-end">
+      <div><div class="score">${right}/${asked.length}</div><div class="foot">correctas en esta ronda</div></div>
+      <div><div class="score" style="color:var(--accent)">${pct}</div><div class="foot">nota sobre 20 (primer intento)</div></div>
+    </div>
+    ${S.roundLog.length>1?`<p class="foot" style="margin:0">Rondas: ${S.roundLog.map(r=>(r.round===1?"Examen":"Repaso "+(r.round-1))+" "+r.right+"/"+r.total).join(" · ")}</p>`:""}
+    <div class="row">
+      ${done?"":`<button class="primary" id="retry">Repasar las ${wrong.length} que fallé →</button>`}
+      <button class="${done?'primary':''}" id="again">Nuevo examen</button>
+    </div>
+  </section>
+  ${wrong.length?`<section class="card stack"><h2>Para repasar</h2><div class="list">${wrong.map(i=>`<div class="li"><span class="dot bad"></span><div style="min-width:0"><b>${esc(BANK[i].q)}</b><div class="muted" style="white-space:pre-line;margin-top:4px">${esc(BANK[i].r)}</div>${BANK[i].m?`<div style="margin-top:4px;color:var(--ok)">💡 ${esc(BANK[i].m)}</div>`:""}</div></div>`).join("")}</div></section>`:""}`;
+  if(!done) document.getElementById("retry").onclick=()=>{S.queue=shuf(wrong);S.idx=0;S.round++;show();};
+  document.getElementById("again").onclick=home;
+}
+
+home();
+</script>
